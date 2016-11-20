@@ -2,8 +2,7 @@
 /* globals module, require, __dirname */
 
 var plugin = {},
-	db = module.parent.require('./database'),
-	hotswap = module.parent.require('./hotswap');
+	db = module.parent.require('./database');
 
 var nconf = module.parent.require('nconf'),
 	async = module.parent.require('async'),
@@ -17,7 +16,7 @@ var	fs = require('fs'),
 
 function renderCustomPage(req, res) {
 	var path = req.path.replace(/\/(api\/)?/, '').replace(/\/$/, '');
-	res.render(path, {
+	res.render('custom-pages/' + path, {
 		title: plugin.pagesHash[path].name
 	});
 }
@@ -61,23 +60,6 @@ function getCustomPages(callback) {
 	}
 }
 
-plugin.prepare = function(hotswapIds, callback) {
-	hotswapIds.push('custom-pages');
-	callback(null, hotswapIds);
-};
-
-plugin.setAvailableTemplates = function(templates, callback) {
-	getCustomPages(function(err, data) {
-		for (var d in data) {
-			if (data.hasOwnProperty(d)) {
-				templates.push(data[d].route + '.tpl');
-			}
-		}
-
-		callback(err, templates);
-	});
-};
-
 plugin.setWidgetAreas = function(areas, callback) {
 	getCustomPages(function(err, data) {
 		for (var d in data) {
@@ -85,22 +67,22 @@ plugin.setWidgetAreas = function(areas, callback) {
 				areas = areas.concat([
 					{
 						'name': data[d].name + ' Header',
-						'template': data[d].route + '.tpl',
+						'template': 'custom-pages/' + data[d].route + '.tpl',
 						'location': 'header'
 					},
 					{
 						'name': data[d].name + ' Footer',
-						'template': data[d].route + '.tpl',
+						'template': 'custom-pages/' + data[d].route + '.tpl',
 						'location': 'footer'
 					},
 					{
 						'name': data[d].name + ' Sidebar',
-						'template': data[d].route + '.tpl',
+						'template': 'custom-pages/' + data[d].route + '.tpl',
 						'location': 'sidebar'
 					},
 					{
 						'name': data[d].name + ' Content',
-						'template': data[d].route + '.tpl',
+						'template': 'custom-pages/' + data[d].route + '.tpl',
 						'location': 'content'
 					}
 				]);
@@ -125,7 +107,7 @@ plugin.addNavigation = function(header, callback) {
 	getCustomPages(function(err, data) {
 		for (var d in data) {
 			if (data.hasOwnProperty(d)) {
-				header.navigation.push({
+				header.push({
 					"class": data[d].class,
 					"route": "/" + data[d].route,
 					"text": data[d].name,
@@ -142,7 +124,7 @@ plugin.init = function(params, callback) {
 	var app = params.router;
 
 	middleware = params.middleware;
-		
+
 	app.get('/admin/custom-pages', middleware.admin.buildHeader, renderAdmin);
 	app.get('/api/admin/custom-pages', renderAdmin);
 
@@ -157,14 +139,19 @@ plugin.init = function(params, callback) {
 		], callback);
 	};
 
-	plugin.reloadRoutes(callback);
+  getCustomPages(function(err, pages) {
+    async.each(pages, function(page, next) {
+      var route = page.route;
+
+      app.get('/' + route, middleware.buildHeader, renderCustomPage);
+      app.get('/api' + route, renderCustomPage);
+    }, callback)
+  })
 };
 
 plugin.reloadRoutes = function(callback) {
 	var pagesRouter = express.Router(),
 		helpers = module.parent.require('./routes/helpers');
-
-	pagesRouter.hotswapId = 'custom-pages';
 
 	fs.readFile(path.join(__dirname, 'templates/custom-page.tpl'), function(err, customTPL) {
 		customTPL = customTPL.toString();
@@ -172,19 +159,18 @@ plugin.reloadRoutes = function(callback) {
 		getCustomPages(function(err, pages) {
 			async.each(pages, function(pageObj, next) {
 				var route = pageObj.route;
-				helpers.setupPageRoute(pagesRouter, '/' + route, middleware, [], renderCustomPage);
 
 				if (path.dirname(route) !== '.') {
 					// Subdirectories specified
-					mkdirp(path.join(nconf.get('views_dir'), path.dirname(route)), function(err) {
+					mkdirp(path.join(__dirname, 'templates/custom-pages', path.dirname(route)), function(err) {
 						if (err) {
 							return next(err);
 						}
 
-						fs.writeFile(path.join(nconf.get('views_dir'), route + '.tpl'), customTPL, next);
+						fs.writeFile(path.join(__dirname, 'templates/custom-pages', route + '.tpl'), customTPL, next);
 					});
 				} else {
-					fs.writeFile(path.join(nconf.get('views_dir'), route + '.tpl'), customTPL, next);
+					fs.writeFile(path.join(__dirname, 'templates/custom-pages', route + '.tpl'), customTPL, next);
 				}
 			}, function(err) {
 				if (err) {
@@ -193,7 +179,6 @@ plugin.reloadRoutes = function(callback) {
 					return callback(err);
 				}
 
-				hotswap.replace('custom-pages', pagesRouter);
 				callback();
 			});
 		});

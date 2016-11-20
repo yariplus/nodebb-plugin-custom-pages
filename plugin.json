@@ -9,19 +9,13 @@
 			"hook": "static:app.load", "method": "init"
 		},
 		{
-			"hook": "filter:hotswap.prepare", "method": "prepare"
-		},
-		{
-			"hook": "filter:header.build", "method": "addNavigation"
+			"hook": "filter:navigation.available", "method": "addNavigation"
 		},
 		{
 			"hook": "filter:admin.header.build", "method": "addAdminNavigation"
 		},
 		{
 			"hook": "filter:widgets.getAreas", "method": "setWidgetAreas"
-		},
-		{
-			"hook": "filter:templates.get_virtual", "method": "setAvailableTemplates"
 		}
 	],
 	"staticDirs": {
